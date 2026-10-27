@@ -23,16 +23,12 @@ func selfTest()throws {
 if CommandLine.arguments.contains("--self-test") {
  do{try selfTest();exit(0)}catch{fputs(error.localizedDescription+"\n",stderr);exit(1)}
 }
-if CommandLine.arguments.contains("--inspect") || CommandLine.arguments.contains("--apply") {
- do {
-  let current=try inspect();print(current.product);print(current.summary)
-  if CommandLine.arguments.contains("--apply") {try apply(expected:current,target:plan(current),log:{print($0)})}
-  exit(0)
- }catch{fputs(error.localizedDescription+"\n",stderr);exit(1)}
+if nativeMode || CommandLine.arguments.contains("--inspect") || CommandLine.arguments.contains("--apply") {
+ fputs("Use the GUI or the bundled administrator helper for reader operations.\n",stderr);exit(1)
 }
 final class Controller:NSObject,NSApplicationDelegate {
  var window:NSWindow!
- let status=NSTextField(wrappingLabelWithString:"Connect one OMNIKEY 5027, remove any card, then inspect its settings.")
+ let status=NSTextField(wrappingLabelWithString:"Connect one OMNIKEY 5027. macOS will request administrator authorization to access it.")
  let details=NSTextField(wrappingLabelWithString:"Your reader’s settings will appear here.")
  let result=NSTextField(wrappingLabelWithString:"The test box clears after Return. Card numbers are not saved.")
  let test=NSTextField()
@@ -79,16 +75,29 @@ final class Controller:NSObject,NSApplicationDelegate {
     if let issue {self.status.stringValue="Operation needs attention";self.log(issue)}
     else if let next {
      self.details.stringValue=next.summary;self.restoreButton.isEnabled=true
-     do {self.proposed=try plan(next);self.applyButton.isEnabled=self.proposed != next;self.status.stringValue=self.proposed==next ? "Return is configured. Test a scan below." : "Ready. Add Return will back up and update the active card settings."}
+     do {self.proposed=try plan(next);self.applyButton.isEnabled=self.proposed != next;self.status.stringValue=self.proposed==next ? "Return is configured. Unplug/reconnect the reader, then test a scan below." : "Ready. Add Return will back up and update the active card settings."}
      catch {self.status.stringValue="Custom settings need review";self.log(error.localizedDescription)}
     }
    }
   }
  }
- @objc func inspectClick(){run{try inspect()}}
- @objc func applyClick(){guard let old=state,let target=proposed else{return};run {try apply(expected:old,target:target,log:{m in DispatchQueue.main.async{self.log(m)}});return try inspect()}}
- @objc func restoreClick(){guard let old=state else{return};let panel=NSOpenPanel();panel.title="Select an OmnikeyHelper backup for this reader";panel.allowedContentTypes=[.json];panel.directoryURL=backupFolder
-  if panel.runModal() == .OK,let url=panel.url {run {let target=try JSONDecoder().decode(Snapshot.self,from:Data(contentsOf:url));try apply(expected:old,target:target,log:{m in DispatchQueue.main.async{self.log(m)}});return try inspect()}}
+ func authorized(_ operation:String, restore:URL?=nil)throws->Snapshot {
+  let helper=Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/OmnikeyHelper-Configure").path
+  var text:UnsafeMutablePointer<CChar>?
+  let expected = operation == "--native-inspect" ? nil : try state.map{try JSONEncoder().encode($0).base64EncodedString()}
+  let status=authorized_reader(helper,operation,String(getuid()),restore?.path,expected,&text)
+  defer{if let text{free_authorized_result(text)}}
+  let output=text.map{String(cString:$0)} ?? ""
+  let visible=output.split(separator:"\n").filter{!$0.hasPrefix("OMNIKEY_RESULT:")}.joined(separator:"\n")
+  if !visible.isEmpty {DispatchQueue.main.async{self.log(visible)}}
+  try require(status==0,status == -60006 ? "Authorization cancelled. No changes made." : "Could not authorize reader access (\(status)).")
+  guard let result=output.split(separator:"\n").last(where:{$0.hasPrefix("OMNIKEY_RESULT:")}),let data=Data(base64Encoded:String(result.dropFirst(15))) else {throw Failure("Reader operation did not complete. See the log above.")}
+  let snapshot=try JSONDecoder().decode(Snapshot.self,from:data);try snapshot.validated();return snapshot
+ }
+ @objc func inspectClick(){run{try self.authorized("--native-inspect")}}
+ @objc func applyClick(){guard state != nil,proposed != nil else{return};run {try self.authorized("--native-apply")}}
+ @objc func restoreClick(){guard state != nil else{return};let panel=NSOpenPanel();panel.title="Select an OmnikeyHelper backup for this reader";panel.allowedContentTypes=[.json];panel.directoryURL=backupFolder
+  if panel.runModal() == .OK,let url=panel.url {run {try self.authorized("--native-restore",restore:url)}}
  }
  @objc func returnReceived(){if !test.stringValue.isEmpty {result.stringValue="Return received ✓ — scan submitted and cleared.";result.textColor = .systemGreen;test.stringValue=""}}
 }

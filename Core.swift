@@ -1,4 +1,6 @@
 import Foundation
+import Darwin
+let nativeMode = CommandLine.arguments.contains("--native-apply") || CommandLine.arguments.contains("--native-inspect") || CommandLine.arguments.contains("--native-restore")
 struct Failure: LocalizedError { let message: String; var errorDescription: String? { message }; init(_ m:String){message=m} }
 func require(_ condition:Bool,_ message:String) throws { if !condition { throw Failure(message) } }
 func hex(_ b:[UInt8])->String { b.map{String(format:"%02X",$0)}.joined() }
@@ -67,13 +69,13 @@ func plan(_ old:Snapshot)throws->Snapshot {
 }
 final class Reader {
  var opened=false
- func open()throws {let r=reader_open();if r<0 {let e=String(cString:reader_error());reader_close();throw Failure(e)};opened=true}
- func close(){if opened {reader_close();opened=false}}
+ func open()throws {if usb_capture()<0 {throw Failure(String(cString:usb_error()))};opened=true}
+ func close(){if opened {usb_release();opened=false}}
  deinit {close()}
  func send(_ bytes:[UInt8])throws->[UInt8] {
   var out=[UInt8](repeating:0,count:512)
-  let n=reader_exchange(bytes,Int32(bytes.count),&out,512)
-  if n<0 {throw Failure(String(cString:reader_error()))};return Array(out.prefix(Int(n)))
+  let n = usb_exchange(bytes,Int32(bytes.count),&out,512)
+  if n<0 {throw Failure(String(cString:usb_error()))};return Array(out.prefix(Int(n)))
  }
  func read()throws->Snapshot {
   let product=try decode(send(command([0xa2,0xa0,0xa0,0x82])),tag:0x82)
@@ -90,12 +92,28 @@ final class Reader {
  }
  func commit()throws { _ = try decode(send(command([0xa2,0xa1,0xa9,0x80])),tag:nil) }
 }
-let backupFolder=FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0].appendingPathComponent("OmnikeyHelper/Backups",isDirectory:true)
+let backupFolder:URL = {
+ if nativeMode, let user=ProcessInfo.processInfo.environment["SUDO_USER"], let home=FileManager.default.homeDirectory(forUser:user) {return home.appendingPathComponent("Library/Application Support/OmnikeyHelper/Backups",isDirectory:true)}
+ return FileManager.default.urls(for:.applicationSupportDirectory,in:.userDomainMask)[0].appendingPathComponent("OmnikeyHelper/Backups",isDirectory:true)
+}()
+func asBackupOwner<T>(_ operation:()throws->T)throws->T {
+ if nativeMode && geteuid()==0 {
+  guard let user=ProcessInfo.processInfo.environment["SUDO_USER"],let pw=getpwnam(user),pw.pointee.pw_uid>=501 else {throw Failure("Invalid backup owner")}
+  let uid=pw.pointee.pw_uid,gid=pw.pointee.pw_gid
+  try require(setegid(gid)==0,"Cannot set backup group")
+  guard seteuid(uid)==0 else{setegid(0);throw Failure("Cannot set backup owner")}
+  defer{seteuid(0);setegid(0)}
+  return try operation()
+ }
+ return try operation()
+}
 func backup(_ state:Snapshot)throws->URL {
- try FileManager.default.createDirectory(at:backupFolder,withIntermediateDirectories:true)
- let url=backupFolder.appendingPathComponent("5027-\(Int(Date().timeIntervalSince1970))-\(UUID().uuidString.prefix(8)).json")
- let encoder=JSONEncoder();encoder.outputFormatting=[.prettyPrinted,.sortedKeys]
- try encoder.encode(state).write(to:url,options:.atomic);return url
+ return try asBackupOwner {
+  try FileManager.default.createDirectory(at:backupFolder,withIntermediateDirectories:true)
+  let url=backupFolder.appendingPathComponent("5027-\(Int(Date().timeIntervalSince1970))-\(UUID().uuidString.prefix(8)).json")
+  let encoder=JSONEncoder();encoder.outputFormatting=[.prettyPrinted,.sortedKeys]
+  try encoder.encode(state).write(to:url,options:.atomic);return url
+ }
 }
 func inspect()throws->Snapshot {let r=Reader();try r.open();defer{r.close()};return try r.read()}
 func apply(expected:Snapshot,target:Snapshot,log:(String)->Void)throws {
