@@ -64,3 +64,7 @@ OmnikeyHelper is the renamed app. Grant permission to the new app separately. Ea
 Version 1.0.2 uses a nonzero RAW protocol mask for direct PC/SC connections. This addresses error `0x80100011` (invalid value) seen with the previous zero-mask connection. Input Monitoring access alone does not resolve that connection error. This fix still requires hardware confirmation.
 
 Reference: https://github.com/smartcardservices/smartcardservices/blob/master/SmartCardServices/src/PCSC/winscard_clnt.c
+
+## Driver feature discovery (1.0.3)
+
+The app queries PC/SC Part 10 for the driver-provided CCID escape control code before sending configuration commands, instead of always assuming the legacy 3500 code. If the driver does not advertise one, the legacy code remains the fallback. Errors now show the transport and control code for troubleshooting. The footer has been removed. Feature parsing tests cover byte order, truncation and malformed records. Hardware behavior remains unverified.

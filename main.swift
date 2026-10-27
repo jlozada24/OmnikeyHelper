@@ -61,7 +61,6 @@ final class Controller:NSObject,NSApplicationDelegate {
   result.font = .systemFont(ofSize:12);result.textColor = .secondaryLabelColor;stack.addArrangedSubview(result)
   let scroll=NSScrollView();scroll.hasVerticalScroller=true;scroll.borderType = .bezelBorder;scroll.documentView=logView;logView.isEditable=false;logView.isSelectable=true;logView.font = .monospacedSystemFont(ofSize:11,weight:.regular);logView.autoresizingMask=[.width];logView.textContainer?.widthTracksTextView=true
   stack.addArrangedSubview(scroll);scroll.widthAnchor.constraint(equalTo:stack.widthAnchor).isActive=true;scroll.heightAnchor.constraint(greaterThanOrEqualToConstant:110).isActive=true
-  stack.addArrangedSubview(label("Backups are saved locally before changes. No network connection or background app is needed after setup.",11))
   for view in stack.arrangedSubviews where view is NSTextField { view.widthAnchor.constraint(equalTo:stack.widthAnchor).isActive=true }
   window.center();window.makeKeyAndOrderFront(nil);NSApp.activate(ignoringOtherApps:true)
  }

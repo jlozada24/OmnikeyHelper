@@ -1,4 +1,5 @@
 #include "Reader.h"
+#include "Features.h"
 #include <PCSC/winscard.h>
 #include <IOKit/hid/IOHIDManager.h>
 #include <stdio.h>
@@ -8,6 +9,7 @@ static SCARDCONTEXT context;
 static SCARDHANDLE card;
 static uint32_t protocol;
 static int directMode;
+static uint32_t escapeCode;
 static char errorText[512];
 const char *reader_error(void) { return errorText; }
 static int fail(const char *operation, long code) {
@@ -75,6 +77,20 @@ int reader_open(void) {
    // macOS PCSC rejects a zero preferred-protocol mask, even for DIRECT.
    if(rc!=SCARD_S_SUCCESS) { directMode=1; rc=SCardConnect(context,selected,SCARD_SHARE_DIRECT,SCARD_PROTOCOL_RAW,&card,&protocol); }
    if(rc!=SCARD_S_SUCCESS) return fail("Cannot connect to the 5027 configuration slot",rc);
+   escapeCode=0x42000000U+3500U;
+   if(directMode) {
+    // PC/SC Part 10: obtain FEATURE_CCID_ESC_COMMAND (0x13).
+    // Drivers need not use the legacy pcsc-lite escape control code.
+    uint8_t features[256]; uint32_t received=0;
+    int32_t featureResult=SCardControl(card,0x42000000U+3400U,NULL,0,features,sizeof(features),&received);
+    if(featureResult==SCARD_S_SUCCESS) {
+     uint32_t discovered=0;
+     if(!parse_escape_feature(features,received,&discovered)) {
+      snprintf(errorText,sizeof(errorText),"The driver returned malformed PC/SC feature data. No reader settings were changed.");return -1;
+     }
+     if(discovered) escapeCode=discovered;
+    }
+   }
    return 0;
   }
   usleep(250000);
@@ -84,8 +100,13 @@ int reader_open(void) {
 int reader_exchange(const uint8_t *input,int length,uint8_t *output,int capacity) {
  if(!card) return fail("Reader is not connected",0);
  uint32_t size=(uint32_t)capacity; int32_t rc;
- if(directMode) rc=SCardControl(card,0x42000000+3500,input,(uint32_t)length,output,size,&size);
+ if(directMode) rc=SCardControl(card,escapeCode,input,(uint32_t)length,output,size,&size);
  else { SCARD_IO_REQUEST pci={protocol,sizeof(SCARD_IO_REQUEST)}; rc=SCardTransmit(card,&pci,input,(uint32_t)length,NULL,output,&size); }
- if(rc!=SCARD_S_SUCCESS) return fail("Reader command failed",rc);
+ if(rc!=SCARD_S_SUCCESS) {
+  char operation[128];
+  if(directMode) snprintf(operation,sizeof(operation),"Configuration exchange failed via SCardControl 0x%08x",escapeCode);
+  else snprintf(operation,sizeof(operation),"Configuration exchange failed via SCardTransmit (protocol %u)",protocol);
+  return fail(operation,rc);
+ }
  return (int)size;
 }
