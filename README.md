@@ -6,11 +6,11 @@
 
 ## Download
 
-**[Download OmnikeyHelper for Mac](https://github.com/jlozada24/OmnikeyHelper/releases/latest/download/OmnikeyHelper-Mac.zip)**
+**[Download OmnikeyHelper for Mac](https://github.com/jlozada24/OmnikeyHelper/releases/latest/download/OmnikeyHelper.dmg)**
 
 macOS 12 or later · Apple silicon and Intel · Developer ID signed and Apple-notarized
 
-Unzip the download and move **OmnikeyHelper.app** to Applications. This is an initial hardware-validation release: offline checks pass, but a real scan still needs validation after macOS permissions are granted.
+Open the DMG and drag **OmnikeyHelper** onto the **Applications** shortcut. Eject the disk image, then open OmnikeyHelper from Applications. No installer or administrator password is needed. This is an initial hardware-validation release: offline checks pass, but a real scan still needs validation after macOS permissions are granted.
 
 ## Quick setup
 
