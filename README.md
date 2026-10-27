@@ -68,3 +68,7 @@ Reference: https://github.com/smartcardservices/smartcardservices/blob/master/Sm
 ## Driver feature discovery (1.0.3)
 
 The app queries PC/SC Part 10 for the driver-provided CCID escape control code before sending configuration commands, instead of always assuming the legacy 3500 code. If the driver does not advertise one, the legacy code remains the fallback. Errors now show the transport and control code for troubleshooting. The footer has been removed. Feature parsing tests cover byte order, truncation and malformed records. Hardware behavior remains unverified.
+
+## Current hardware-test result
+
+A desktop test of 1.0.3 successfully opened the 5027 and discovered the advertised escape control code `0x42000001`, but the active macOS driver rejected the first configuration read with `0x80100004`. No settings were written. Automatic Return setup is therefore **not yet working on this tested configuration**. Testing the alternate bundled CCID driver is the next diagnostic step; it has not yet been verified as a fix.
