@@ -10,16 +10,16 @@
 
 macOS 12+ · Apple silicon and Intel · Developer ID signed and Apple-notarized
 
-Open the DMG and drag **OmnikeyHelper** onto **Applications**. Eject the disk image and launch the app from Applications. There is no installer package.
+## Quick setup — no Terminal commands
 
-## Setup
+1. [Download the DMG](https://github.com/jlozada24/OmnikeyHelper/releases/latest/download/OmnikeyHelper.dmg) and drag the app to Applications.
+2. Connect your **OMNIKEY 5027**.
+3. Click **Inspect Reader → Add Return**, approving the macOS administrator prompts.
+4. Unplug/reconnect the reader and test a scan.
 
-1. Connect exactly one OMNIKEY 5027.
-2. Click **Inspect Reader** and approve the macOS administrator prompt. The app reads the current keyboard settings.
-3. Click **Add Return** and authorize the change. The app backs up the existing settings, adds Enter to the active card configurations, and reads the saved settings back.
-4. **Unplug and reconnect the reader.** This restores normal keyboard input after configuration and checks that the settings survive a power cycle. You can dismiss macOS's keyboard-identification assistant if it appears.
-5. Click the app's test field and scan a card. **Return received** confirms that the scan submitted and cleared the field. Do not press Return manually during the test.
-6. Quit the app. The reader retains the setting; no background app is needed.
+**No Terminal commands needed.** You do need administrator credentials. It worked on the tested Mac; other Mac/reader combinations haven’t been verified yet.
+
+Open the app from Applications after copying it. Connect one reader at a time. To test, click the app’s scan-test box and tap a card without pressing Return yourself. **“Return received”** confirms success. You can then quit the app—the reader retains its setting.
 
 If Return is already configured, Add Return is disabled. USB mode changes can briefly remove the reader; the app retries capture before issuing configuration commands. If it still cannot connect, unplug/reconnect and inspect again.
 
